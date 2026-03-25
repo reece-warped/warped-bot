@@ -1,143 +1,103 @@
 # warped-bot
 
-A lightweight Node.js bot that posts a Discord notification whenever someone goes live on Twitch streaming your game.
+A GitHub Actions bot that posts a Discord notification whenever someone goes live on Twitch streaming your game. Runs every 5 minutes for free on GitHub's infrastructure — no server required.
 
 ---
 
-## Prerequisites
+## How It Works
 
-- **Node.js 18 or newer** — [Download here](https://nodejs.org)
-- A **Twitch Developer account** (free) — sign in at [dev.twitch.tv](https://dev.twitch.tv)
-- A **Discord server** where you have permission to create webhooks
+Every 5 minutes, GitHub Actions runs the bot. It:
+1. Fetches live Twitch streams for your game
+2. Compares them against `data/notified.json` (streams already notified)
+3. Posts a Discord embed for any new streams
+4. Commits the updated `data/notified.json` back to the repo
 
 ---
 
 ## Setup
 
-### 1. Create a Twitch Application
+### 1. Get Your Twitch Credentials
 
 1. Go to [https://dev.twitch.tv/console](https://dev.twitch.tv/console) and log in.
 2. Click **Register Your Application**.
 3. Fill in the form:
    - **Name:** anything you like (e.g. `warped-bot`)
-   - **OAuth Redirect URLs:** `http://localhost` (required but unused)
-   - **Category:** select **Chat Bot** or **Other**
-4. Click **Create**.
-5. On the next page, click **Manage** next to your new app.
-6. Copy your **Client ID** — you'll need this.
-7. Click **New Secret**, then copy the **Client Secret** — you'll need this too.
-   > Keep your Client Secret private. Never commit it to git.
-
----
+   - **OAuth Redirect URLs:** `http://localhost`
+   - **Category:** Chat Bot or Other
+4. Click **Create**, then **Manage** next to your new app.
+5. Copy your **Client ID**.
+6. Click **New Secret** and copy the **Client Secret**.
 
 ### 2. Create a Discord Webhook
 
-1. Open Discord and go to the channel where you want notifications posted.
-2. Click the gear icon next to the channel name (**Edit Channel**).
-3. Go to **Integrations** → **Webhooks** → **New Webhook**.
-4. Give it a name (e.g. `warped-bot`) and optionally set an avatar.
-5. Click **Copy Webhook URL** — you'll need this.
-6. Click **Save**.
+1. In Discord, open the channel where you want notifications.
+2. Click the gear icon → **Integrations** → **Webhooks** → **New Webhook**.
+3. Give it a name, then click **Copy Webhook URL**.
 
----
+### 3. Push the Repo to GitHub
 
-### 3. Configure the Bot
-
-1. In the project folder, copy `.env.example` to a new file called `.env`:
-   ```
-   cp .env.example .env
-   ```
-2. Open `.env` in a text editor and fill in your values:
-
-   ```env
-   TWITCH_CLIENT_ID=abc123yourid
-   TWITCH_CLIENT_SECRET=xyz789yoursecret
-   TWITCH_GAME_NAME=Minecraft
-   DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
-   POLL_INTERVAL_MS=120000
-   ```
-
-   > **Important:** `TWITCH_GAME_NAME` must match the Twitch category name **exactly** as it appears on Twitch — including capitalisation and punctuation. For example, use `"PUBG: BATTLEGROUNDS"` not `"pubg"`.
-
----
-
-### 4. Install Dependencies
+If you haven't already, create a new GitHub repository and push this project to it:
 
 ```bash
+git init
+git add .
+git commit -m "Initial commit"
+git remote add origin https://github.com/YOUR_USERNAME/warped-bot.git
+git push -u origin main
+```
+
+### 4. Add Repository Secrets
+
+1. On GitHub, go to your repo → **Settings** → **Secrets and variables** → **Actions**.
+2. Click **New repository secret** for each of the following:
+
+| Secret name | Value |
+|---|---|
+| `TWITCH_CLIENT_ID` | Your Twitch app Client ID |
+| `TWITCH_CLIENT_SECRET` | Your Twitch app Client Secret |
+| `TWITCH_GAME_NAME` | `Warped Universe` (must match the Twitch category exactly) |
+| `DISCORD_WEBHOOK_URL` | Your Discord webhook URL |
+
+### 5. Enable the Workflow
+
+The workflow runs automatically once the secrets are set. You can also trigger it manually to test:
+
+1. Go to the **Actions** tab in your GitHub repo.
+2. Click **Check Twitch Streams** in the left sidebar.
+3. Click **Run workflow** → **Run workflow**.
+
+Watch the run logs to confirm everything is working.
+
+---
+
+## Local Testing
+
+You can run the bot locally for testing:
+
+```bash
+cp .env.example .env
+# fill in your values in .env
 npm install
+node src/index.js
 ```
-
----
-
-### 5. Run the Bot
-
-```bash
-npm start
-```
-
-You should see output like:
-
-```
-[2025-01-01T12:00:00.000Z] [Startup] warped-bot starting...
-[2025-01-01T12:00:00.000Z] [Startup] Game: "Minecraft" | Poll interval: 120s
-[2025-01-01T12:00:00.000Z] [Twitch] Access token fetched successfully.
-[2025-01-01T12:00:00.000Z] [Twitch] Resolved game "Minecraft" → ID 27471
-[2025-01-01T12:00:00.000Z] [Startup] Ready. Starting poll loop.
-[2025-01-01T12:00:00.000Z] [Poll] No new streams. 42 live, 0 already notified.
-```
-
-Every 2 minutes, it will check Twitch for new streams. When one is found, it posts a rich embed to your Discord channel.
-
----
-
-## Keeping it Running
-
-To keep the bot running after you close your terminal, use a process manager.
-
-**With PM2** (recommended for VPS/Linux):
-```bash
-npm install -g pm2
-pm2 start src/index.js --name warped-bot
-pm2 save
-pm2 startup   # follow the printed command to auto-start on reboot
-```
-
-**With systemd** (Linux):
-
-Create `/etc/systemd/system/warped-bot.service`:
-```ini
-[Unit]
-Description=warped-bot Twitch notifier
-After=network.target
-
-[Service]
-WorkingDirectory=/path/to/warped-bot
-ExecStart=/usr/bin/node src/index.js
-Restart=on-failure
-EnvironmentFile=/path/to/warped-bot/.env
-
-[Install]
-WantedBy=multi-user.target
-```
-Then: `sudo systemctl enable --now warped-bot`
 
 ---
 
 ## Troubleshooting
 
 **"Could not find game 'XYZ' on Twitch"**
-The game name in your `.env` doesn't match any Twitch category exactly. Go to Twitch, search for the game, and copy the category name character-for-character (including colons, ampersands, etc.).
+The `TWITCH_GAME_NAME` secret doesn't match any Twitch category. Go to Twitch, search for the game, and copy the category name exactly — including capitalisation and punctuation.
 
-**No notifications are appearing**
-- Check that your Discord webhook URL is correct and the webhook hasn't been deleted.
-- Make sure there are actually streams live for your game right now. You can verify at `https://www.twitch.tv/directory/game/YOUR+GAME+NAME`.
-- Check the console logs for any errors.
+**No notifications appearing**
+- Check the Actions run logs for errors.
+- Confirm there are streams live for your game right now at `https://www.twitch.tv/directory/game/Warped+Universe`.
+- Verify your Discord webhook URL is correct and hasn't been deleted.
 
 **"Twitch auth failed"**
-Double-check your `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET` in `.env`. Make sure there are no extra spaces or quotes.
+Double-check your `TWITCH_CLIENT_ID` and `TWITCH_CLIENT_SECRET` secrets — no extra spaces.
 
-**Bot posts the same stream repeatedly**
-This shouldn't happen with normal use. If it does, check that nothing is restarting the process repeatedly — each restart clears the in-memory notification tracking.
+**Bot notifies for the same stream every run**
+The commit step may not be pushing `data/notified.json` back. Check the "Commit notified streams data" step in the Actions log for errors.
 
-**Discord says "Invalid Webhook Token"**
-Your webhook URL has been deleted or regenerated. Create a new webhook in Discord and update `DISCORD_WEBHOOK_URL` in your `.env`.
+**Workflow isn't running every 5 minutes**
+GitHub Actions may delay scheduled workflows by up to a few minutes under high load. Also note: GitHub automatically disables scheduled workflows on repos with no activity after 60 days — just re-enable them from the Actions tab.
